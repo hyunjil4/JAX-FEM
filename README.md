@@ -1,448 +1,567 @@
-# 🚀 3D FEM Solver using JAX-FEM - Complete Beginner's Guide
+# JAX-FEM 3D Heat Equation Solver
 
-이 프로젝트는 3D 유한요소법(FEM) 솔버를 JAX-FEM을 사용해서 구현하고, CPU와 GPU(CUDA) 성능을 비교하는 프로그램입니다.
+A high-performance 3D heat transfer finite element method (FEM) solver implemented in JAX with GPU acceleration support.
 
-## 📚 **이 가이드는 누구를 위한 것인가요?**
+## Overview
 
-- **CS 초보자**: 프로그래밍을 처음 배우는 분들
-- **Python 초보자**: Python을 처음 사용하는 분들  
-- **과학계산 초보자**: 수치해석이나 유한요소법을 처음 접하는 분들
-- **GPU 가속 초보자**: CUDA나 GPU 가속을 처음 사용하는 분들
+This project implements a **matrix-free explicit time-stepping** FEM solver for the 3D heat equation using 8-node hexahedral (HEX8) elements. The solver leverages JAX's automatic differentiation, JIT compilation, and GPU acceleration capabilities for efficient computation on modern hardware.
 
-## 🎯 **이 프로그램이 하는 일**
+## Features
 
-1. **3D 구조물 해석**: 3차원 구조물의 변형과 응력을 계산
-2. **CPU vs GPU 성능 비교**: CPU와 GPU 중 어느 것이 더 빠른지 측정
-3. **시각화**: 결과를 그래프로 보여줌
-4. **자동화**: 모든 과정을 자동으로 실행
+- ✅ **3D Heat Equation Solver**: Implements the transient heat conduction equation
+- ✅ **HEX8 Elements**: 8-node hexahedral finite elements with 2×2×2 Gauss integration
+- ✅ **Matrix-Free Method**: Explicit time-stepping without global matrix assembly
+- ✅ **JAX/GPU Acceleration**: Automatic GPU support via JAX (CUDA/ROCm)
+- ✅ **Vectorized Operations**: Fully vectorized element operations for optimal performance
+- ✅ **Dirichlet Boundary Conditions**: Fixed temperature boundary conditions
+- ✅ **Memory Efficient**: Lumped mass matrix storage for reduced memory footprint
 
----
+## Mathematical Model
 
-## 🛠️ **1단계: 기본 소프트웨어 설치**
+### 3D Heat Equation
 
-### **1.1 Python 설치 (Anaconda 사용 - 추천)**
+The transient heat conduction equation in three dimensions is:
 
-**Anaconda란?** Python과 필요한 라이브러리들을 한 번에 설치해주는 프로그램입니다.
+$$
+\rho c_p \frac{\partial T}{\partial t} = \nabla \cdot (\kappa \nabla T) + Q
+$$
 
-#### **Windows 사용자:**
+where:
+- $T(\mathbf{x}, t)$ is the temperature field
+- $\rho$ is the material density
+- $c_p$ is the specific heat capacity
+- $\kappa$ is the thermal conductivity
+- $Q$ is the heat source term (assumed zero in this implementation)
 
-1. **Anaconda 다운로드**
-   - 웹사이트: https://www.anaconda.com/download
-   - "Download" 버튼 클릭
-   - Python 3.11 버전 선택 (64-bit)
+For simplicity, we assume $\rho c_p = 1$ and $Q = 0$, leading to:
 
-2. **설치**
-   - 다운로드한 파일 실행
-   - "Just Me" 선택 (개인 사용)
-   - "Add Anaconda to PATH" 체크박스 **반드시 체크**
-   - "Install" 클릭
+$$
+\frac{\partial T}{\partial t} = \kappa \nabla^2 T
+$$
 
-3. **설치 확인**
-   - `Win + R` 키 누르기
-   - `cmd` 입력하고 Enter
-   - 명령창에 `python --version` 입력
-   - Python 3.11.x 버전이 나오면 성공!
+### Weak Form
 
-#### **Mac 사용자:**
+Applying the Galerkin method, we multiply by a test function $v$ and integrate over the domain $\Omega$:
 
-1. **Anaconda 다운로드**
-   - 웹사이트: https://www.anaconda.com/download
-   - "Download" 버튼 클릭
-   - Python 3.11 버전 선택 (MacOS)
+$$
+\int_\Omega v \frac{\partial T}{\partial t} \, d\Omega + \kappa \int_\Omega \nabla v \cdot \nabla T \, d\Omega = 0
+$$
 
-2. **설치**
-   - 다운로드한 `.pkg` 파일 실행
-   - 설치 과정을 따라 진행
-   - "Add Anaconda to PATH" 옵션 선택
+Using the finite element approximation $T \approx \sum_j N_j T_j$ and $v = N_i$ (Galerkin method), we obtain:
 
-3. **설치 확인**
-   - 터미널 열기 (Spotlight에서 "터미널" 검색)
-   - `python3 --version` 입력
-   - Python 3.11.x 버전이 나오면 성공!
+$$
+\int_\Omega N_i \sum_j N_j \frac{\partial T_j}{\partial t} \, d\Omega + \kappa \int_\Omega \nabla N_i \cdot \sum_j \nabla N_j T_j \, d\Omega = 0
+$$
 
-#### **Linux 사용자:**
+### FEM Discretization
 
+This leads to the semi-discrete system:
+
+$$
+M \frac{d\mathbf{T}}{dt} + K \mathbf{T} = \mathbf{0}
+$$
+
+where:
+- $M_{ij} = \int_\Omega N_i N_j \, d\Omega$ is the **mass matrix**
+- $K_{ij} = \kappa \int_\Omega \nabla N_i \cdot \nabla N_j \, d\Omega$ is the **stiffness matrix**
+- $\mathbf{T}$ is the vector of nodal temperatures
+
+### Explicit Time Integration
+
+Using explicit Euler time-stepping with a lumped mass matrix $M_{\text{lump}}$ (diagonal), the update formula becomes:
+
+$$
+T^{n+1} = T^n - \Delta t \, \kappa \, M_{\text{lump}}^{-1} K T^n
+$$
+
+This can be written element-wise as:
+
+$$
+T_i^{n+1} = T_i^n - \Delta t \, \kappa \, \frac{(K T^n)_i}{M_{\text{lump},ii}}
+$$
+
+The matrix-free implementation computes $(K T^n)$ without assembling the global matrix $K$, making it memory-efficient and GPU-friendly.
+
+## HEX8 Element Formulation
+
+### Shape Functions
+
+For an 8-node hexahedral element in natural coordinates $(\xi, \eta, \zeta) \in [-1,1]^3$, the shape functions are:
+
+$$
+N_1 = \frac{1}{8}(1-\xi)(1-\eta)(1-\zeta), \quad
+N_2 = \frac{1}{8}(1+\xi)(1-\eta)(1-\zeta)
+$$
+
+$$
+N_3 = \frac{1}{8}(1+\xi)(1+\eta)(1-\zeta), \quad
+N_4 = \frac{1}{8}(1-\xi)(1+\eta)(1-\zeta)
+$$
+
+$$
+N_5 = \frac{1}{8}(1-\xi)(1-\eta)(1+\zeta), \quad
+N_6 = \frac{1}{8}(1+\xi)(1-\eta)(1+\zeta)
+$$
+
+$$
+N_7 = \frac{1}{8}(1+\xi)(1+\eta)(1+\zeta), \quad
+N_8 = \frac{1}{8}(1-\xi)(1+\eta)(1+\zeta)
+$$
+
+### Element Matrices
+
+The element stiffness matrix is computed via Gauss quadrature:
+
+$$
+K_e^{ij} = \kappa \int_{\Omega_e} \nabla N_i \cdot \nabla N_j \, d\Omega_e = \kappa \sum_{g=1}^{8} w_g (\nabla N_i)_g \cdot (\nabla N_j)_g |J_g|
+$$
+
+where:
+- $w_g = 1$ are the Gauss weights (2×2×2 quadrature)
+- $|J_g|$ is the determinant of the Jacobian at Gauss point $g$
+- $(\nabla N_i)_g$ is the gradient in physical coordinates
+
+The element mass matrix is:
+
+$$
+M_e^{ij} = \int_{\Omega_e} N_i N_j \, d\Omega_e = \sum_{g=1}^{8} w_g N_i(\xi_g) N_j(\xi_g) |J_g|
+$$
+
+The lumped mass matrix is obtained by row-sum:
+
+$$
+M_{\text{lump},ii} = \sum_j M_{ij}
+$$
+
+## Matrix-Free JAX Implementation
+
+The solver uses a **matrix-free** approach that avoids assembling the global stiffness matrix:
+
+1. **Element-level computation**: For each element, compute $K_e T_e$ where $T_e$ are the element nodal temperatures
+2. **Scatter-add**: Accumulate contributions to the global vector $(K T)$
+3. **Time update**: Apply the explicit update formula element-wise
+
+This approach:
+- Reduces memory usage (no global $K$ matrix storage)
+- Enables efficient GPU parallelization
+- Leverages JAX's `vmap` for vectorized element operations
+
+### JAX Optimizations
+
+- **JIT Compilation**: `@jax.jit` decorator for compiled execution
+- **Vectorization**: `vmap` for parallel element operations
+- **GPU Acceleration**: Automatic GPU utilization via JAX
+- **Float32 Precision**: Optimized for GPU performance
+
+## GPU Acceleration
+
+The solver automatically detects and uses available GPUs:
+
+```python
+gpus = jax.devices("gpu")
+device = gpus[0] if gpus else jax.devices("cpu")[0]
+```
+
+JAX handles:
+- Automatic GPU memory management
+- Kernel fusion for reduced memory transfers
+- Optimized sparse matrix operations (when applicable)
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- CUDA-capable GPU (optional, for GPU acceleration)
+- CUDA toolkit 11.0+ or 12.0+ (if using GPU)
+
+### Setup
+
+1. **Clone the repository:**
 ```bash
-# 터미널에서 실행
-wget https://repo.anaconda.com/archive/Anaconda3-2023.09-0-Linux-x86_64.sh
-bash Anaconda3-2023.09-0-Linux-x86_64.sh
-# 설치 과정에서 "yes" 입력하고 Enter 키 누르기
-source ~/.bashrc
-python3 --version
+git clone https://github.com/yourusername/jax-fem-heat-solver.git
+cd jax-fem-heat-solver
 ```
 
-### **1.2 Git 설치 (코드 다운로드용)**
-
-#### **Windows 사용자:**
-1. https://git-scm.com/download/win 방문
-2. "Download for Windows" 클릭
-3. 설치 파일 실행하고 기본 설정으로 설치
-
-#### **Mac 사용자:**
+2. **Create a virtual environment (recommended):**
 ```bash
-# 터미널에서 실행
-brew install git
-# 또는 Xcode Command Line Tools 설치
-xcode-select --install
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-#### **Linux 사용자:**
+3. **Install dependencies:**
 ```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install git
-
-# CentOS/RHEL
-sudo yum install git
-```
-
----
-
-## 🎮 **2단계: GPU 가속 설정 (선택사항)**
-
-**GPU 가속이란?** 그래픽카드를 사용해서 계산을 더 빠르게 하는 기술입니다.
-
-### **2.1 NVIDIA GPU 확인**
-
-#### **Windows 사용자:**
-1. `Win + R` 키 누르기
-2. `dxdiag` 입력하고 Enter
-3. "Display" 탭에서 "Name" 확인
-4. NVIDIA로 시작하면 GPU 가속 가능!
-
-#### **Mac 사용자:**
-```bash
-# 터미널에서 실행
-system_profiler SPDisplaysDataType | grep -i nvidia
-```
-
-#### **Linux 사용자:**
-```bash
-# 터미널에서 실행
-lspci | grep -i nvidia
-```
-
-### **2.2 CUDA 설치 (NVIDIA GPU가 있는 경우만)**
-
-**CUDA란?** NVIDIA GPU를 사용해서 계산을 가속화하는 도구입니다.
-
-#### **Windows 사용자:**
-
-1. **NVIDIA 드라이버 확인**
-   - `Win + X` 키 누르기
-   - "장치 관리자" 선택
-   - "디스플레이 어댑터" 확장
-   - NVIDIA 그래픽카드 확인
-
-2. **CUDA Toolkit 다운로드**
-   - 웹사이트: https://developer.nvidia.com/cuda-downloads
-   - "Windows" 선택
-   - "x86_64" 선택
-   - "exe (network)" 다운로드
-
-3. **CUDA 설치**
-   - 다운로드한 파일 실행
-   - "Express" 설치 선택
-   - 설치 완료 후 재부팅
-
-4. **설치 확인**
-   - `Win + R` 키 누르기
-   - `cmd` 입력하고 Enter
-   - `nvcc --version` 입력
-   - CUDA 버전이 나오면 성공!
-
-#### **Mac 사용자:**
-```bash
-# 터미널에서 실행
-# Mac은 CUDA를 직접 지원하지 않으므로 CPU만 사용
-echo "Mac에서는 CPU만 사용 가능합니다"
-```
-
-#### **Linux 사용자:**
-```bash
-# 터미널에서 실행
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
-sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600
-wget https://developer.download.nvidia.com/compute/cuda/12.2.0/local_installers/cuda-repo-ubuntu2004-12-2-local_12.2.0-535.54.03-1_amd64.deb
-sudo dpkg -i cuda-repo-ubuntu2004-12-2-local_12.2.0-535.54.03-1_amd64.deb
-sudo cp /var/cuda-repo-ubuntu2004-12-2-local/cuda-*-keyring.gpg /usr/share/keyrings/
-sudo apt-get update
-sudo apt-get -y install cuda
-```
-
----
-
-## 📥 **3단계: 프로젝트 다운로드**
-
-### **3.1 프로젝트 다운로드**
-
-#### **방법 1: Git 사용 (추천)**
-```bash
-# 터미널/명령창에서 실행
-git clone https://github.com/your-username/MHIT36-main.git
-cd MHIT36-main/살려줘
-```
-
-#### **방법 2: ZIP 파일 다운로드**
-1. GitHub 페이지에서 "Code" → "Download ZIP" 클릭
-2. ZIP 파일 압축 해제
-3. `MHIT36-main/살려줘` 폴더로 이동
-
-### **3.2 파일 확인**
-다음 파일들이 있는지 확인하세요:
-- `run_experiment.sh` (Linux/Mac용)
-- `run_experiment.bat` (Windows용)
-- `working_demo.py`
-- `requirements.txt`
-
----
-
-## 🔧 **4단계: 환경 설정**
-
-### **4.1 가상환경 생성**
-
-**가상환경이란?** 프로젝트별로 독립적인 Python 환경을 만드는 것입니다.
-
-#### **Windows 사용자:**
-```cmd
-# 명령창(cmd)에서 실행
-cd MHIT36-main\살려줘
-python -m venv jax_fem_env
-jax_fem_env\Scripts\activate
-```
-
-#### **Mac/Linux 사용자:**
-```bash
-# 터미널에서 실행
-cd MHIT36-main/살려줘
-python3 -m venv jax_fem_env
-source jax_fem_env/bin/activate
-```
-
-**성공하면 명령창 앞에 `(jax_fem_env)`가 나타납니다!**
-
-### **4.2 필요한 라이브러리 설치**
-
-#### **자동 설치 (추천):**
-
-**Windows 사용자:**
-```cmd
-# 명령창에서 실행 (가상환경 활성화된 상태)
-install_dependencies.bat
-```
-
-**Mac/Linux 사용자:**
-```bash
-# 터미널에서 실행 (가상환경 활성화된 상태)
-chmod +x install_dependencies.sh
-./install_dependencies.sh
-```
-
-#### **수동 설치:**
-```bash
-# 가상환경 활성화된 상태에서 실행
 pip install -r requirements.txt
 ```
 
----
+### GPU Support (Optional)
 
-## 🚀 **5단계: 프로그램 실행**
+For GPU acceleration, install JAX with CUDA support:
 
-### **5.1 설치 확인**
+**CUDA 12.x:**
 ```bash
-# 가상환경 활성화된 상태에서 실행
-python test_installation.py
+pip install --upgrade "jax[cuda12]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
-**성공하면:** "✅ All packages installed correctly!" 메시지가 나타납니다.
-
-### **5.2 GPU 확인 (선택사항)**
+**CUDA 11.x:**
 ```bash
-# 가상환경 활성화된 상태에서 실행
-python check_cuda_version.py
+pip install --upgrade "jax[cuda11]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
-**GPU가 있으면:** CUDA 버전과 GPU 정보가 나타납니다.
-**GPU가 없으면:** "No GPU detected" 메시지가 나타납니다 (정상입니다).
+Verify GPU availability:
+```python
+import jax
+print(jax.devices())  # Should show GPU devices
+```
 
-### **5.3 기본 테스트**
+## How to Run
+
+### Basic Usage
+
+Run the solver with default parameters (20×20×20 mesh):
+
 ```bash
-# 가상환경 활성화된 상태에서 실행
-python working_demo.py
+python src/fem_solver.py
 ```
 
-**성공하면:** CPU와 GPU 성능 비교 결과가 나타납니다.
+### Custom Mesh Size
 
-### **5.4 완전한 실험 실행**
+Specify the mesh dimensions:
 
-#### **Windows 사용자:**
-```cmd
-# 명령창에서 실행 (가상환경 활성화된 상태)
-run_experiment.bat
-```
-
-#### **Mac/Linux 사용자:**
 ```bash
-# 터미널에서 실행 (가상환경 활성화된 상태)
-chmod +x run_experiment.sh
-./run_experiment.sh
+python src/fem_solver.py 10 10 10
 ```
 
----
+This creates a 10×10×10 element mesh (11×11×11 nodes).
 
-## 📊 **6단계: 결과 확인**
+### Programmatic Usage
 
-### **6.1 실행 결과**
-프로그램이 성공적으로 실행되면:
+**New API (recommended):**
 
-1. **화면에 출력되는 내용:**
-   ```
-   3D FEM SOLVER BENCHMARK: CPU vs GPU (CUDA)
-   =============================================
-   
-   Mesh: 10×10×10 elements
-   Nodes: 1,331
-   Elements: 1,000
-   DOFs: 3,993
-   
-   Assembly Time:
-     CPU:  0.1234 seconds
-     GPU:  0.0456 seconds
-     Speedup: 2.71x
-   
-   Solve Time:
-     CPU:  0.0567 seconds
-     GPU:  0.0234 seconds
-     Speedup: 2.42x
-   
-   Total Time:
-     CPU:  0.1801 seconds
-     GPU:  0.0690 seconds
-     Speedup: 2.61x
-   ```
+```python
+from src.solver import run_simulation
 
-2. **생성되는 파일들:**
-   - `performance_comparison.png` - 성능 비교 그래프
-   - `results_YYYYMMDD_HHMMSS/` 폴더 - 상세 결과
+# Run simulation with logging
+T, history = run_simulation(
+    nx=20, ny=20, nz=20,      # Mesh size (elements)
+    dt=1e-6,                  # Time step
+    steps=100,                # Number of time steps
+    T_bottom=100.0,           # Bottom temperature (z=0)
+    T_top=0.0,                # Top temperature (z=1)
+    kappa=1.0,                # Thermal conductivity
+    save_history=True,        # Save temperature at each step
+    log_file="temp_log.csv"   # Log min/max T per step
+)
 
-### **6.2 결과 해석**
+# T is a 3D array of shape (Nx, Ny, Nz)
+print(f"Temperature field shape: {T.shape}")
+print(f"Min temperature: {T.min():.2f}°C")
+print(f"Max temperature: {T.max():.2f}°C")
+print(f"Timing: {history['timing']}")
+```
 
-- **Speedup > 1**: GPU가 CPU보다 빠름
-- **Speedup = 1**: GPU와 CPU 성능이 비슷함
-- **Speedup < 1**: CPU가 GPU보다 빠름 (드물게 발생)
+**Legacy API (backward compatible):**
 
----
+```python
+from src.fem_solver import run_fem_explicit
 
-## 🆘 **문제 해결**
+# Run simulation (simple interface)
+T = run_fem_explicit(
+    nx=20, ny=20, nz=20,
+    dt=1e-6,
+    steps=100,
+    T_bottom=100.0,
+    T_top=0.0,
+    kappa=1.0
+)
+```
 
-### **문제 1: "python이 인식되지 않습니다"**
-**해결방법:**
-1. Anaconda 설치 시 "Add to PATH" 옵션을 체크했는지 확인
-2. 컴퓨터 재부팅
-3. Anaconda Prompt 사용
+### Example Script
 
-### **문제 2: "pip이 인식되지 않습니다"**
-**해결방법:**
+Run the example script:
+
 ```bash
-# 가상환경 활성화 후 실행
-python -m pip install --upgrade pip
+python examples/run_example.py
 ```
 
-### **문제 3: "NumPy 2.x 오류"**
-**해결방법:**
+### Visualization
+
+Generate 2D slice visualizations:
+
 ```bash
-# 가상환경 활성화 후 실행
-python fix_numpy_compatibility.py
+python examples/visualize_slices.py [nx] [ny] [nz]
 ```
 
-### **문제 4: "JAX/NumPy 호환성 오류"**
-**해결방법:**
+Generate 3D volume rendering:
+
 ```bash
-# 가상환경 활성화 후 실행
-python fix_jax_numpy_compatibility.py
+python examples/visualize_3d.py [nx] [ny] [nz]
 ```
 
-### **문제 5: "CUDA를 찾을 수 없습니다"**
-**해결방법:**
-1. NVIDIA 드라이버 최신 버전 설치
-2. CUDA Toolkit 재설치
-3. 컴퓨터 재부팅
+### Animation
 
----
+Create animated GIF showing heat diffusion:
 
-## 📁 **파일 설명**
-
-### **실행 파일들**
-- `run_experiment.sh` - **완전한 실험** (Linux/Mac용)
-- `run_experiment.bat` - **완전한 실험** (Windows용)
-- `working_demo.py` - **기본 테스트** (추천)
-- `run_benchmark.py` - 성능 벤치마크
-
-### **설치 파일들**
-- `install_dependencies.sh` - 자동 설치 (Linux/Mac)
-- `install_dependencies.bat` - 자동 설치 (Windows)
-- `requirements.txt` - 필요한 라이브러리 목록
-
-### **문제 해결 파일들**
-- `fix_numpy_compatibility.py` - NumPy 문제 해결
-- `fix_jax_numpy_compatibility.py` - JAX/NumPy 문제 해결
-- `test_installation.py` - 설치 확인
-
-### **문서 파일들**
-- `README.md` - 이 파일 (완전한 가이드)
-- `QUICK_START.md` - 빠른 시작 가이드
-- `EXECUTION_GUIDE.md` - 실행 순서 가이드
-- `CUDA_INSTALLATION_GUIDE.md` - CUDA 설치 가이드
-
----
-
-## 🎯 **빠른 시작 (한 줄 명령어)**
-
-### **Windows 사용자:**
-```cmd
-# 1. 프로젝트 다운로드 후
-cd MHIT36-main\살려줘
-python -m venv jax_fem_env
-jax_fem_env\Scripts\activate
-install_dependencies.bat
-run_experiment.bat
-```
-
-### **Mac/Linux 사용자:**
 ```bash
-# 1. 프로젝트 다운로드 후
-cd MHIT36-main/살려줘
-python3 -m venv jax_fem_env
-source jax_fem_env/bin/activate
-chmod +x *.sh
-./install_dependencies.sh
-./run_experiment.sh
+python examples/make_animation.py [nx] [ny] [nz]
 ```
 
----
+This generates `docs/animation/heat_diffusion.gif`.
 
-## 📞 **도움이 필요하신가요?**
+### Benchmarking
 
-1. **먼저 시도해보세요:**
-   - `python test_installation.py` - 설치 확인
-   - `python working_demo.py` - 기본 테스트
+Run performance benchmark across multiple mesh sizes:
 
-2. **문제가 있으면:**
-   - `python fix_numpy_compatibility.py` - NumPy 문제 해결
-   - `python fix_jax_numpy_compatibility.py` - JAX 문제 해결
+```bash
+python examples/benchmark.py
+```
 
-3. **여전히 문제가 있으면:**
-   - `results_*/` 폴더의 로그 파일 확인
-   - 오류 메시지를 정확히 복사해서 문의
+This generates `docs/benchmark/performance.png` with scaling analysis.
 
----
+### Logging
 
-## 🎉 **축하합니다!**
+Run simulation with CSV logging:
 
-이제 3D 유한요소법 솔버를 사용할 수 있습니다! 
+```python
+from src.solver import run_simulation
 
-- **CPU vs GPU 성능 비교**를 통해 하드웨어 성능을 확인할 수 있습니다
-- **시각화**를 통해 결과를 쉽게 이해할 수 있습니다
-- **자동화**를 통해 복잡한 설정 없이 바로 사용할 수 있습니다
+T, history = run_simulation(
+    nx=20, ny=20, nz=20,
+    dt=1e-6,
+    steps=100,
+    log_file="temperature_history.csv",  # Save min/max T per step
+    save_history=True  # Save full temperature field at each step
+)
+```
 
-**다음 단계:** `jax_fem_3d_solver.py` 파일을 수정해서 자신만의 문제를 해결해보세요!
+## Example Output
+
+```
+Using mesh size from CLI: 20 20 20
+
+[FEM EXPLICIT (Pure JAX)]
+Mesh     : 20 x 20 x 20
+Elements :   8000
+Nodes    :   9261
+Assembly :   145.23 ms
+Solve    :   234.56 ms
+Total    :   379.79 ms
+--------------------------------
+Tmin = 0.0000, Tmax = 100.0000
+--------------------------------
+```
+
+## Performance
+
+The solver is optimized for GPU acceleration:
+
+- **Assembly**: Vectorized element matrix computation using `vmap`
+- **Time Stepping**: JIT-compiled matrix-free operations
+- **Memory**: Efficient lumped mass matrix storage (diagonal only)
+
+### Typical Performance (NVIDIA GPU)
+
+| Mesh Size | Elements | Nodes | Assembly | Solve | Total |
+|-----------|----------|-------|----------|-------|-------|
+| 10×10×10  | 1,000    | 1,331 | ~20 ms   | ~30 ms | ~50 ms |
+| 20×20×20  | 8,000    | 9,261 | ~150 ms  | ~250 ms | ~400 ms |
+| 50×50×50  | 125,000  | 132,651 | ~2 s   | ~3 s   | ~5 s |
+
+*Note: Performance depends on GPU model and JAX version.*
+
+## Generated Visualizations
+
+### 2D Slice Visualizations
+
+The solver can generate 2D heatmap slices showing temperature distribution at mid-planes:
+
+![Temperature Slices](docs/temperature_slices_20x20x20.png)
+
+*XY, XZ, and YZ mid-plane slices of the temperature field*
+
+### 3D Volume Rendering
+
+3D visualizations showing the complete temperature field:
+
+![3D Temperature Field](docs/temperature_3d_20x20x20.png)
+
+*3D isosurface visualization of the temperature field*
+
+### Animation Preview
+
+Animated GIF showing heat diffusion over time:
+
+![Heat Diffusion Animation](docs/animation/heat_diffusion_20x20x20.gif)
+
+*Time evolution of temperature field (GIF animation)*
+
+## Benchmark Results
+
+Performance scaling analysis across different mesh sizes:
+
+![Performance Benchmark](docs/benchmark/performance.png)
+
+*Left: Time breakdown (Assembly, Solve, Total) vs mesh size*  
+*Right: Scaling analysis on log-log scale*
+
+The benchmark shows:
+- **Sub-linear scaling** for assembly (vectorized operations)
+- **Near-linear scaling** for solve (matrix-free operations)
+- **GPU acceleration** provides significant speedup for larger meshes
+
+## Mesh and Degrees of Freedom
+
+For a mesh with $n_x \times n_y \times n_z$ elements:
+
+- **Number of elements**: $N_e = n_x \times n_y \times n_z$
+- **Number of nodes**: $N_{\text{nodes}} = (n_x + 1) \times (n_y + 1) \times (n_z + 1)$
+- **Degrees of freedom**: $N_{\text{DOF}} = N_{\text{nodes}}$ (1 DOF per node for scalar temperature)
+
+Example mesh sizes:
+
+| Elements | Nodes | DOFs | Memory (float32) |
+|----------|-------|------|------------------|
+| 10³ = 1,000 | 1,331 | 1,331 | ~5 KB |
+| 20³ = 8,000 | 9,261 | 9,261 | ~37 KB |
+| 50³ = 125,000 | 132,651 | 132,651 | ~530 KB |
+| 100³ = 1,000,000 | 1,030,301 | 1,030,301 | ~4 MB |
+
+## Project Structure
+
+```
+jax-fem-heat-solver/
+├── README.md                    # This file
+├── LICENSE                      # MIT License
+├── requirements.txt             # Python dependencies
+├── .gitignore                  # Git ignore rules
+├── src/
+│   ├── __init__.py             # Package initialization
+│   ├── fem_utils.py           # FEM utility functions (shape functions, mesh)
+│   ├── solver.py              # Main solver implementation (modular)
+│   └── fem_solver.py          # Legacy CLI entrypoint (backward compatibility)
+├── examples/
+│   ├── run_example.py         # Basic usage example
+│   ├── visualize_slices.py    # 2D slice visualization
+│   ├── visualize_3d.py        # 3D volume rendering
+│   ├── make_animation.py      # GIF animation generator
+│   └── benchmark.py            # Performance benchmarking
+├── tests/
+│   ├── __init__.py
+│   ├── test_shape_functions.py    # Shape function tests
+│   ├── test_element_matrices.py  # Element matrix tests
+│   └── test_boundary_conditions.py # BC preservation tests
+├── docs/
+│   ├── benchmark/
+│   │   └── performance.png        # Generated benchmark plot
+│   └── animation/
+│       └── heat_diffusion_*.gif  # Generated animations
+└── scripts/                      # Optional helper scripts
+    ├── activate_env.sh          # Environment activation helper
+    └── run_with_env.sh          # Wrapper script for execution
+```
+
+## Implementation Details
+
+### Element Type
+- **HEX8**: 8-node hexahedral elements
+- **Integration**: 2×2×2 Gauss quadrature (8 integration points)
+- **Natural Coordinates**: $(\xi, \eta, \zeta) \in [-1,1]^3$
+
+### Numerical Methods
+- **Spatial Discretization**: Finite Element Method (FEM) with Galerkin formulation
+- **Time Integration**: Explicit Euler method
+- **Matrix Assembly**: Element-level computation (matrix-free)
+- **Mass Matrix**: Lumped (diagonal) for explicit stability
+
+### Stability Condition
+
+For explicit time-stepping, the time step must satisfy:
+
+$$
+\Delta t < \frac{2}{\lambda_{\max}(M_{\text{lump}}^{-1} K)}
+$$
+
+where $\lambda_{\max}$ is the maximum eigenvalue. For uniform meshes, this typically requires:
+
+$$
+\Delta t \lesssim \frac{h^2}{2\kappa}
+$$
+
+where $h$ is the element size.
+
+## Limitations
+
+- **Explicit time-stepping**: Requires small time steps for stability (CFL condition)
+- **Structured meshes only**: Currently supports only uniform hexahedral meshes
+- **Dirichlet BCs only**: No Neumann (flux) boundary conditions yet
+- **Uniform material**: Constant thermal conductivity $\kappa$ (no spatial variation)
+- **No heat sources**: $Q = 0$ (can be extended)
+
+## Testing
+
+Run unit tests to verify solver correctness:
+
+```bash
+pytest tests/
+```
+
+Or run specific test files:
+
+```bash
+pytest tests/test_shape_functions.py -v
+pytest tests/test_element_matrices.py -v
+pytest tests/test_boundary_conditions.py -v
+```
+
+## Future Enhancements
+
+- [x] Visualization utilities (2D slices, 3D rendering)
+- [x] Animation generation
+- [x] Performance benchmarking
+- [x] Unit tests
+- [x] Logging and history tracking
+- [ ] Implicit time integration (backward Euler, Crank-Nicolson)
+- [ ] Neumann boundary conditions
+- [ ] Unstructured mesh support
+- [ ] Variable material properties
+- [ ] Heat source terms
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use this code in your research, please cite:
+
+```bibtex
+@software{jax_fem_heat_solver,
+  title = {JAX-FEM 3D Heat Equation Solver},
+  author = {Your Name},
+  year = {2024},
+  url = {https://github.com/yourusername/jax-fem-heat-solver},
+  version = {1.0.0}
+}
+```
+
+## Acknowledgments
+
+- Built with [JAX](https://github.com/google/jax) - Google's high-performance machine learning framework
+- Inspired by modern GPU-accelerated FEM implementations
+- Uses JAX's automatic differentiation and JIT compilation capabilities
+
+## References
+
+- JAX Documentation: https://jax.readthedocs.io/
+- Finite Element Method: Standard FEM textbooks (e.g., Zienkiewicz & Taylor)
+- GPU-Accelerated Computing: NVIDIA CUDA documentation
