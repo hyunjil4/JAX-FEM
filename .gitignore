@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+jax_fem_env*/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project.code-workspace
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment
+.envrc
+.env
+
+# Results and outputs
+results_*/
+*.log
+
+# Generated documentation (keep these in repo)
+!docs/**/*.png
+!docs/**/*.gif
+!docs/**/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+warp/
+*.tmp
