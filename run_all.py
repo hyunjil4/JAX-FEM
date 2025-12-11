@@ -3,7 +3,8 @@
 Master script to run complete FEM pipeline:
 1. Run solver to generate temperature.npy
 2. Generate all visualizations
-3. Update README with generated images
+3. Verify all output files exist
+4. Update README with generated images
 """
 import os
 import subprocess
@@ -15,51 +16,163 @@ NX = NY = NZ = 20
 DT = 1e-6
 STEPS = 100
 
+# Expected output files
+EXPECTED_FILES = {
+    "temperature.npy": "Project root",
+    "docs/temperature_slices_20x20x20.png": "2D slice visualization",
+    "docs/temperature_3d_20x20x20.png": "3D volume rendering",
+    "docs/animation/heat_diffusion_20x20x20.gif": "Animation GIF"
+}
+
 # Ensure we're in project root
 project_root = Path(__file__).parent
 os.chdir(project_root)
 
 
+def verify_file(filepath, description):
+    """Verify that a file exists and is not empty."""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(
+            f"❌ {description} not found: {filepath}\n"
+            f"   Expected file was not generated. Please check the previous step."
+        )
+    if os.path.getsize(filepath) == 0:
+        raise ValueError(
+            f"❌ {description} is empty: {filepath}\n"
+            f"   File was created but contains no data."
+        )
+    print(f"✓ Verified: {filepath} ({os.path.getsize(filepath) / 1024:.1f} KB)")
+
+
 def run_simulation():
-    """Run FEM solver and verify temperature.npy is created."""
-    print("\n=== 1) Running FEM Simulation ===")
+    """Step 1: Run FEM solver and ensure temperature.npy is saved."""
+    print("\n" + "="*70)
+    print("STEP 1: Running FEM Simulation")
+    print("="*70)
+    
     cmd = f"python src/fem_solver.py {NX} {NY} {NZ}"
-    result = subprocess.run(cmd, shell=True, check=True)
+    result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+    
     if result.returncode != 0:
+        print(result.stderr)
         raise RuntimeError("Simulation failed")
     
+    # Print solver output
+    if result.stdout:
+        print(result.stdout)
+    
     # Verify temperature.npy was created
-    assert os.path.exists("temperature.npy"), "temperature.npy was not produced."
-    print("✓ Simulation complete. temperature.npy saved.")
+    verify_file("temperature.npy", "Temperature field")
+    print("✓ Step 1 complete: temperature.npy saved\n")
 
 
 def generate_slices():
-    """Generate 2D slice visualizations."""
-    print("\n=== 2) Generating 2D Slices ===")
+    """Step 2: Generate 2D slice visualizations."""
+    print("="*70)
+    print("STEP 2: Generating 2D Slice Visualizations")
+    print("="*70)
+    
     os.makedirs("docs", exist_ok=True)
-    subprocess.run("python examples/visualize_slices.py", shell=True, check=True)
-    print("✓ 2D slices generated")
+    result = subprocess.run(
+        "python examples/visualize_slices.py",
+        shell=True,
+        check=True,
+        capture_output=True,
+        text=True
+    )
+    
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+    
+    # Verify output file exists
+    output_file = f"docs/temperature_slices_{NX}x{NY}x{NZ}.png"
+    verify_file(output_file, "2D slice visualization")
+    print(f"✓ Step 2 complete: {output_file} generated\n")
 
 
 def generate_3d():
-    """Generate 3D volume rendering."""
-    print("\n=== 3) Generating 3D Volume Rendering ===")
+    """Step 3: Generate 3D volume rendering."""
+    print("="*70)
+    print("STEP 3: Generating 3D Volume Rendering")
+    print("="*70)
+    
     os.makedirs("docs", exist_ok=True)
-    subprocess.run("python examples/visualize_3d.py", shell=True, check=True)
-    print("✓ 3D visualization generated")
+    result = subprocess.run(
+        "python examples/visualize_3d.py",
+        shell=True,
+        check=True,
+        capture_output=True,
+        text=True
+    )
+    
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+    
+    # Verify output file exists
+    output_file = f"docs/temperature_3d_{NX}x{NY}x{NZ}.png"
+    verify_file(output_file, "3D volume rendering")
+    print(f"✓ Step 3 complete: {output_file} generated\n")
 
 
-def generate_gif():
-    """Generate animation GIF."""
-    print("\n=== 4) Generating Animation GIF ===")
+def generate_animation():
+    """Step 4: Generate animation GIF."""
+    print("="*70)
+    print("STEP 4: Generating Animation GIF")
+    print("="*70)
+    
     os.makedirs("docs/animation", exist_ok=True)
-    subprocess.run("python examples/make_animation.py", shell=True, check=True)
-    print("✓ Animation GIF generated")
+    result = subprocess.run(
+        "python examples/make_animation.py",
+        shell=True,
+        check=True,
+        capture_output=True,
+        text=True
+    )
+    
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+    
+    # Verify output file exists
+    output_file = f"docs/animation/heat_diffusion_{NX}x{NY}x{NZ}.gif"
+    verify_file(output_file, "Animation GIF")
+    print(f"✓ Step 4 complete: {output_file} generated\n")
+
+
+def verify_all_outputs():
+    """Step 5: Verify all expected output files exist."""
+    print("="*70)
+    print("STEP 5: Verifying All Output Files")
+    print("="*70)
+    
+    all_verified = True
+    for filepath, description in EXPECTED_FILES.items():
+        try:
+            verify_file(filepath, description)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"\n{e}")
+            all_verified = False
+    
+    if not all_verified:
+        raise RuntimeError(
+            "❌ Some output files are missing or invalid.\n"
+            "   Please check the error messages above and re-run the pipeline."
+        )
+    
+    print("\n✓ All output files verified successfully!")
+    print("="*70 + "\n")
 
 
 def update_readme():
-    """Update README with auto-generated visualization section."""
-    print("\n=== 5) Updating README ===")
+    """Step 6: Update README with auto-generated visualization section."""
+    print("="*70)
+    print("STEP 6: Updating README")
+    print("="*70)
     
     md = "README.md"
     if not os.path.exists(md):
@@ -108,6 +221,7 @@ def update_readme():
         f.write(new_section)
     
     print("✓ README updated with new auto-generated images.")
+    print("="*70 + "\n")
 
 
 def main():
@@ -115,27 +229,55 @@ def main():
     print("="*70)
     print("JAX-FEM Heat Solver - Complete Pipeline")
     print("="*70)
+    print(f"Configuration: Mesh {NX}×{NY}×{NZ}, {STEPS} steps")
+    print("="*70)
     
     try:
+        # Step 1: Run solver
         run_simulation()
+        
+        # Step 2: Generate 2D slices
         generate_slices()
+        
+        # Step 3: Generate 3D visualization
         generate_3d()
-        generate_gif()
+        
+        # Step 4: Generate animation
+        generate_animation()
+        
+        # Step 5: Verify all outputs
+        verify_all_outputs()
+        
+        # Step 6: Update README
         update_readme()
-        print("\n" + "="*70)
-        print("🎉 ALL DONE! Check docs/ for outputs.")
+        
+        # Final success message
+        print("="*70)
+        print("🎉 ALL STEPS COMPLETED SUCCESSFULLY!")
+        print("="*70)
+        print("\nGenerated files:")
+        for filepath, description in EXPECTED_FILES.items():
+            if os.path.exists(filepath):
+                size = os.path.getsize(filepath) / 1024
+                print(f"  ✓ {filepath} ({size:.1f} KB)")
+        print("\n✓ All images are ready for GitHub README!")
         print("="*70 + "\n")
-    except AssertionError as e:
-        print(f"\n❌ Error: {e}")
+        
+        return 0
+        
+    except FileNotFoundError as e:
+        print(f"\n{e}")
         return 1
     except subprocess.CalledProcessError as e:
         print(f"\n❌ Error running command: {e}")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"Error output: {e.stderr}")
         return 1
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
-    
-    return 0
 
 
 if __name__ == "__main__":

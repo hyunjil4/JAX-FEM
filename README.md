@@ -306,7 +306,7 @@ Create animated GIF showing heat diffusion:
 python examples/make_animation.py [nx] [ny] [nz]
 ```
 
-This generates `docs/heat_diffusion_20x20x20.gif`.
+This generates `docs/animation/heat_diffusion_20x20x20.gif`.
 
 ### Benchmarking
 
@@ -568,13 +568,16 @@ If you use this code in your research, please cite:
 
 ---
 
-## 🔄 Auto-Generated Visualizations (Updated 2025-12-11 17:35)
+
+---
+
+## 🔄 Auto-Generated Visualizations (Updated 2025-12-11 17:50)
 
 ### 2D Temperature Slices
-![Slices](docs/temperature_slices_20x20x20.png)
+![Temperature Slices](docs/temperature_slices_20x20x20.png)
 
 ### 3D Isosurface Visualization
-![3D](docs/temperature_3d_20x20x20.png)
+![3D Temperature Field](docs/temperature_3d_20x20x20.png)
 
 ### Animation (Heat Diffusion)
 ![Heat Diffusion Animation](docs/animation/heat_diffusion_20x20x20.gif)

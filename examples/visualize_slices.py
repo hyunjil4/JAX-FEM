@@ -42,9 +42,10 @@ plt.colorbar(im3, ax=axes[2])
 
 plt.tight_layout()
 
-# Save with mesh size in filename
+# Save with mesh size in filename - ALWAYS save to docs/temperature_slices_20x20x20.png
 nx, ny, nz = T.shape[0]-1, T.shape[1]-1, T.shape[2]-1
 output_file = f"docs/temperature_slices_{nx}x{ny}x{nz}.png"
+os.makedirs("docs", exist_ok=True)
 plt.savefig(output_file, dpi=150, bbox_inches='tight')
 plt.close()
 
