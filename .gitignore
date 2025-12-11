@@ -34,6 +34,10 @@ jax_fem_env*/
 # Results and outputs
 results_*/
 *.log
+temperature.npy
+temperature_*.npy
+temp_frame.png
+temp.png
 
 # Generated documentation (keep these in repo)
 !docs/**/*.png
