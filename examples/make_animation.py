@@ -14,7 +14,8 @@ sys.path.insert(0, str(project_root))
 
 from src.solver import run_simulation
 
-os.makedirs("docs", exist_ok=True)
+# Create output directory
+os.makedirs("docs/animation", exist_ok=True)
 
 # Run simulation with history to generate animation
 print("Running simulation with history for animation...")
@@ -57,8 +58,8 @@ for i, T in enumerate(T_history):
     frames.append(imageio.imread(temp_file))
     os.remove(temp_file)  # Clean up temp file
 
-# Save GIF with mesh size in filename
+# Save GIF with mesh size in filename to docs/animation/
 nx, ny, nz = T_final.shape[0]-1, T_final.shape[1]-1, T_final.shape[2]-1
-output_file = f"docs/heat_diffusion_{nx}x{ny}x{nz}.gif"
+output_file = f"docs/animation/heat_diffusion_{nx}x{ny}x{nz}.gif"
 imageio.mimsave(output_file, frames, fps=5)
 print(f"Saved animation: {output_file}")

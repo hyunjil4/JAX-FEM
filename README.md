@@ -391,7 +391,7 @@ The solver can generate 2D heatmap slices showing temperature distribution at mi
 
 Animated GIF showing heat diffusion over time:
 
-![Heat Diffusion Animation](docs/heat_diffusion_20x20x20.gif)
+![Heat Diffusion Animation](docs/animation/heat_diffusion_20x20x20.gif)
 
 *Time evolution of temperature field (GIF animation)*
 
@@ -577,6 +577,6 @@ If you use this code in your research, please cite:
 ![3D](docs/temperature_3d_20x20x20.png)
 
 ### Animation (Heat Diffusion)
-![GIF](docs/heat_diffusion_20x20x20.gif)
+![Heat Diffusion Animation](docs/animation/heat_diffusion_20x20x20.gif)
 
 ---
