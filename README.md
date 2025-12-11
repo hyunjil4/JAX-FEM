@@ -306,7 +306,7 @@ Create animated GIF showing heat diffusion:
 python examples/make_animation.py [nx] [ny] [nz]
 ```
 
-This generates `docs/animation/heat_diffusion.gif`.
+This generates `docs/heat_diffusion_20x20x20.gif`.
 
 ### Benchmarking
 
@@ -391,7 +391,7 @@ The solver can generate 2D heatmap slices showing temperature distribution at mi
 
 Animated GIF showing heat diffusion over time:
 
-![Heat Diffusion Animation](docs/animation/heat_diffusion_20x20x20.gif)
+![Heat Diffusion Animation](docs/heat_diffusion_20x20x20.gif)
 
 *Time evolution of temperature field (GIF animation)*
 
@@ -565,3 +565,18 @@ If you use this code in your research, please cite:
 - JAX Documentation: https://jax.readthedocs.io/
 - Finite Element Method: Standard FEM textbooks (e.g., Zienkiewicz & Taylor)
 - GPU-Accelerated Computing: NVIDIA CUDA documentation
+
+---
+
+## 🔄 Auto-Generated Visualizations (Updated 2025-12-11 17:35)
+
+### 2D Temperature Slices
+![Slices](docs/temperature_slices_20x20x20.png)
+
+### 3D Isosurface Visualization
+![3D](docs/temperature_3d_20x20x20.png)
+
+### Animation (Heat Diffusion)
+![GIF](docs/heat_diffusion_20x20x20.gif)
+
+---

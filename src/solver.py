@@ -11,6 +11,7 @@ import time
 import csv
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
+import numpy as np
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -221,6 +222,11 @@ def run_simulation(nx=20, ny=20, nz=20,
         if save_history:
             history['T_history'] = [T.reshape(Nx, Ny, Nz) for T in T_history]
 
+        # ---- Save temperature.npy for visualization ----
+        import numpy as _np
+        _np.save("temperature.npy", _np.array(T_final))
+        print("Saved temperature.npy")
+
         return T_final, history
 
 
@@ -245,7 +251,11 @@ def run_fem_explicit(nx=20, ny=20, nz=20,
         save_history=False,
         verbose=True
     )
+    
     return T
+
+
+
 
 
 # ============================================================
