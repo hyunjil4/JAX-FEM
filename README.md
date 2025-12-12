@@ -411,6 +411,7 @@ Performance scaling analysis across different mesh sizes:
 | 100×100×100 | 1,000,000 | 1,030,301 | 906.46 ms | 166.66 ms | 1073.14 ms |
 | 200×200×200 | 8,000,000 | 8,120,601 | 1040.57 ms | 329.39 ms | 1369.98 ms |
 
+*For small meshes (N=10), runtime is dominated by JAX JIT compilation and GPU kernel launch overhead.*
 *Left: Time breakdown (Assembly, Solve, Total) vs mesh size*  
 *Right: Scaling analysis on log-log scale*
 
