@@ -106,12 +106,12 @@ print(f"Temperature range: {T_min:.2f} to {T_max:.2f}")
 frames = []
 for i, T in enumerate(T_history):
     # YZ slice at mid X index
-    mid_i = T.shape[0] // 2
-    slice2d = T[mid_i, :, :]  # YZ slice
+    mid = T.shape[0] // 2
+    slice2d = T[mid, :, :]  # YZ slice
     
     plt.figure(figsize=(8, 6))
     plt.imshow(slice2d, cmap="inferno", vmin=T_min, vmax=T_max, origin='lower')
-    plt.title(f"Heat Diffusion (YZ Slice) - Step {i+1}/{len(T_history)}", fontsize=12)
+    plt.title(f"YZ Slice – Step {i+1}/{len(T_history)}", fontsize=12)
     plt.xlabel("Y", fontsize=10)
     plt.ylabel("Z", fontsize=10)
     plt.colorbar(label="Temperature (°C)")

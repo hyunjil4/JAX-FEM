@@ -21,7 +21,7 @@ EXPECTED_FILES = {
     "temperature.npy": "Project root",
     "docs/temperature_slices_20x20x20.png": "2D slice visualization",
     "docs/temperature_3d_20x20x20.png": "3D volume rendering",
-    "docs/animation/heat_diffusion_20x20x20.gif": "Animation GIF"
+    "docs/animation/heat_diffusion_yz_20x20x20.gif": "Animation GIF (YZ slice)"
 }
 
 # Ensure we're in project root
@@ -139,8 +139,8 @@ def generate_animation():
         print(result.stderr)
     
     # Verify output file exists
-    output_file = f"docs/animation/heat_diffusion_{NX}x{NY}x{NZ}.gif"
-    verify_file(output_file, "Animation GIF")
+    output_file = f"docs/animation/heat_diffusion_yz_{NX}x{NY}x{NZ}.gif"
+    verify_file(output_file, "Animation GIF (YZ slice)")
     print(f"✓ Step 4 complete: {output_file} generated\n")
 
 
@@ -210,7 +210,7 @@ def update_readme():
 ![3D Temperature Field](docs/temperature_3d_{NX}x{NY}x{NZ}.png)
 
 ### Animation (Heat Diffusion)
-![Heat Diffusion Animation](docs/animation/heat_diffusion_{NX}x{NY}x{NZ}.gif)
+![Heat Diffusion Animation](docs/animation/heat_diffusion_yz_{NX}x{NY}x{NZ}.gif)
 
 ---
 """

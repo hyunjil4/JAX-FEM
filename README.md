@@ -306,7 +306,7 @@ Create animated GIF showing heat diffusion:
 python examples/make_animation.py [nx] [ny] [nz]
 ```
 
-This generates `docs/animation/heat_diffusion_20x20x20.gif`.
+This generates `docs/animation/heat_diffusion_yz_20x20x20.gif` showing the YZ-plane slice.
 
 ### Benchmarking
 
@@ -389,11 +389,11 @@ The solver can generate 2D heatmap slices showing temperature distribution at mi
 
 ### Animation Preview
 
-Animated GIF showing heat diffusion over time:
+Animated GIF showing heat diffusion over time (YZ-plane slice):
 
-![Heat Diffusion Animation](docs/animation/heat_diffusion_20x20x20.gif)
+![Heat Diffusion Animation](docs/animation/heat_diffusion_yz_20x20x20.gif)
 
-*Time evolution of temperature field (GIF animation)*
+*Time evolution of temperature field on YZ-plane (GIF animation)*
 
 ## Benchmark Results
 
@@ -574,7 +574,10 @@ If you use this code in your research, please cite:
 
 ---
 
-## 🔄 Auto-Generated Visualizations (Updated 2025-12-11 17:51)
+
+---
+
+## 🔄 Auto-Generated Visualizations (Updated 2025-12-11 18:10)
 
 ### 2D Temperature Slices
 ![Temperature Slices](docs/temperature_slices_20x20x20.png)
@@ -583,6 +586,6 @@ If you use this code in your research, please cite:
 ![3D Temperature Field](docs/temperature_3d_20x20x20.png)
 
 ### Animation (Heat Diffusion)
-![Heat Diffusion Animation](docs/animation/heat_diffusion_20x20x20.gif)
+![Heat Diffusion Animation](docs/animation/heat_diffusion_yz_20x20x20.gif)
 
 ---
