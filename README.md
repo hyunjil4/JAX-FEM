@@ -363,9 +363,9 @@ The solver is optimized for GPU acceleration:
 
 | Mesh Size | Elements | Nodes | Assembly | Solve | Total |
 |-----------|----------|-------|----------|-------|-------|
-| 10×10×10  | 1,000    | 1,331 | ~20 ms   | ~30 ms | ~50 ms |
-| 20×20×20  | 8,000    | 9,261 | ~150 ms  | ~250 ms | ~400 ms |
-| 50×50×50  | 125,000  | 132,651 | ~2 s   | ~3 s   | ~5 s |
+| 10×10×10 | 1,000 | 1,331 | 1417.48 ms | 173.84 ms | 1591.35 ms |
+| 100×100×100 | 1,000,000 | 1,030,301 | 1425.66 ms | 305.93 ms | 1731.61 ms |
+| 200×200×200 | 8,000,000 | 8,120,601 | 1470.74 ms | 1484.79 ms | 2955.56 ms |
 
 *Note: Performance depends on GPU model and JAX version.*
 
@@ -373,27 +373,27 @@ The solver is optimized for GPU acceleration:
 
 ### 2D Slice Visualizations
 
-The solver can generate 2D heatmap slices showing temperature distribution at mid-planes:
+The solver can generate 2D heatmap slices showing heat diffusion from a central hot sphere source:
 
 ![Temperature Slices](docs/temperature_slices_20x20x20.png)
 
-*XY, XZ, and YZ mid-plane slices of the temperature field*
+*Heat diffusion from a central hot sphere source - XY, XZ, and YZ mid-plane slices*
 
 ### 3D Volume Rendering
 
-3D visualizations showing the complete temperature field:
+3D visualizations showing heat diffusion from a central hot sphere source:
 
 ![3D Temperature Field](docs/temperature_3d_20x20x20.png)
 
-*3D isosurface visualization of the temperature field*
+*Heat diffusion from a central hot sphere source - 3D isosurface visualization*
 
 ### Animation Preview
 
-Animated GIF showing heat diffusion over time (YZ-plane slice):
+Animated GIF showing heat diffusion from a central hot sphere source over time (YZ-plane slice):
 
 ![Heat Diffusion Animation](docs/animation/heat_diffusion_yz_20x20x20.gif)
 
-*Time evolution of temperature field on YZ-plane (GIF animation)*
+*Heat diffusion from a central hot sphere source - time evolution on YZ-plane (GIF animation)*
 
 ## Benchmark Results
 
@@ -577,16 +577,25 @@ If you use this code in your research, please cite:
 
 ---
 
-## 🔄 Auto-Generated Visualizations (Updated 2025-12-11 18:10)
+
+
+---
+
+## 🔄 Auto-Generated Visualizations (Updated 2025-12-11 20:32)
 
 ### 2D Temperature Slices
 ![Temperature Slices](docs/temperature_slices_20x20x20.png)
 
+*Heat diffusion from a central hot sphere source - 2D slice visualizations*
+
 ### 3D Isosurface Visualization
 ![3D Temperature Field](docs/temperature_3d_20x20x20.png)
+
+*Heat diffusion from a central hot sphere source - 3D isosurface visualization*
 
 ### Animation (Heat Diffusion)
 ![Heat Diffusion Animation](docs/animation/heat_diffusion_yz_20x20x20.gif)
 
----
+*Heat diffusion from a central hot sphere source - animated GIF showing time evolution*
 
+---

@@ -135,11 +135,30 @@ def run_simulation(nx=20, ny=20, nz=20,
         # Assemble lumped mass matrix
         M_lump = assemble_lumped_mass(Me, elem_dofs, Nnodes)
 
-        # Initial condition: linear from bottom to top
+        # Initial condition: hot sphere at center
+        # Start with T_top everywhere
+        T = jnp.full(Nnodes, T_top, dtype=jnp.float32)
+        
+        # Sphere center
+        cx, cy, cz = Lx / 2.0, Ly / 2.0, Lz / 2.0
+        # Sphere radius = domain/6 (using average of domain dimensions)
+        R = min(Lx, Ly, Lz) / 6.0
+        
+        # Calculate distance from each node to sphere center
+        X = coords_global[:, 0]
+        Y = coords_global[:, 1]
         Z = coords_global[:, 2]
-        T = T_bottom + (T_top - T_bottom) * (Z / Lz)
+        dx = X - cx
+        dy = Y - cy
+        dz = Z - cz
+        dist_sq = dx * dx + dy * dy + dz * dz
+        R_sq = R * R
+        
+        # Set T_bottom inside sphere
+        inside_sphere = dist_sq < R_sq
+        T = jnp.where(inside_sphere, T_bottom, T)
 
-        # Apply boundary conditions
+        # Apply boundary conditions (re-applies T_bottom at z=0 and T_top at z=Lz)
         T, dir_nodes, T_bc_vals = apply_boundary_conditions(
             T, coords_global, T_bottom, T_top, Lz
         )
