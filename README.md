@@ -244,7 +244,7 @@ from src.solver import run_simulation
 # Run simulation with logging
 T, history = run_simulation(
     nx=20, ny=20, nz=20,      # Mesh size (elements)
-    dt=1e-6,                  # Time step
+    dt=None,                  # Time step (computed automatically for stability)
     steps=100,                # Number of time steps
     T_bottom=100.0,           # Bottom temperature (z=0)
     T_top=0.0,                # Top temperature (z=1)
@@ -268,7 +268,7 @@ from src.fem_solver import run_fem_explicit
 # Run simulation (simple interface)
 T = run_fem_explicit(
     nx=20, ny=20, nz=20,
-    dt=1e-6,
+    dt=None,  # Time step computed automatically for stability
     steps=100,
     T_bottom=100.0,
     T_top=0.0,
@@ -327,7 +327,7 @@ from src.solver import run_simulation
 
 T, history = run_simulation(
     nx=20, ny=20, nz=20,
-    dt=1e-6,
+    dt=None,  # Time step computed automatically for stability
     steps=100,
     log_file="temperature_history.csv",  # Save min/max T per step
     save_history=True  # Save full temperature field at each step
@@ -363,9 +363,13 @@ The solver is optimized for GPU acceleration:
 
 | Mesh Size | Elements | Nodes | Assembly | Solve | Total |
 |-----------|----------|-------|----------|-------|-------|
-| 10×10×10 | 1,000 | 1,331 | 1417.48 ms | 173.84 ms | 1591.35 ms |
-| 100×100×100 | 1,000,000 | 1,030,301 | 1425.66 ms | 305.93 ms | 1731.61 ms |
-| 200×200×200 | 8,000,000 | 8,120,601 | 1470.74 ms | 1484.79 ms | 2955.56 ms |
+| 10×10×10 | 1,000 | 1,331 | 1372.83 ms | 174.29 ms | 1547.16 ms |
+| 20×20×20 | 8,000 | 9,261 | 855.70 ms | 153.42 ms | 1009.14 ms |
+| 40×40×40 | 64,000 | 68,921 | 903.63 ms | 136.80 ms | 1040.45 ms |
+| 60×60×60 | 216,000 | 226,981 | 930.23 ms | 145.57 ms | 1075.82 ms |
+| 80×80×80 | 512,000 | 531,441 | 874.40 ms | 148.50 ms | 1022.92 ms |
+| 100×100×100 | 1,000,000 | 1,030,301 | 906.46 ms | 166.66 ms | 1073.14 ms |
+| 200×200×200 | 8,000,000 | 8,120,601 | 1040.57 ms | 329.39 ms | 1369.98 ms |
 
 *Note: Performance depends on GPU model and JAX version.*
 
@@ -399,7 +403,17 @@ Animated GIF showing heat diffusion from a central hot sphere source over time (
 
 Performance scaling analysis across different mesh sizes:
 
-![Performance Benchmark](docs/benchmark/performance.png)
+![Performance Benchmark](docs/benchmark_plot.png)
+
+| Mesh Size | Elements | Nodes | Assembly | Solve | Total |
+|-----------|----------|-------|----------|-------|-------|
+| 10×10×10 | 1,000 | 1,331 | 1372.83 ms | 174.29 ms | 1547.16 ms |
+| 20×20×20 | 8,000 | 9,261 | 855.70 ms | 153.42 ms | 1009.14 ms |
+| 40×40×40 | 64,000 | 68,921 | 903.63 ms | 136.80 ms | 1040.45 ms |
+| 60×60×60 | 216,000 | 226,981 | 930.23 ms | 145.57 ms | 1075.82 ms |
+| 80×80×80 | 512,000 | 531,441 | 874.40 ms | 148.50 ms | 1022.92 ms |
+| 100×100×100 | 1,000,000 | 1,030,301 | 906.46 ms | 166.66 ms | 1073.14 ms |
+| 200×200×200 | 8,000,000 | 8,120,601 | 1040.57 ms | 329.39 ms | 1369.98 ms |
 
 *Left: Time breakdown (Assembly, Solve, Total) vs mesh size*  
 *Right: Scaling analysis on log-log scale*
@@ -489,9 +503,17 @@ $$
 
 where $h$ is the element size.
 
+**Automatic Time Step Computation**: The solver automatically computes a stable time step using the CFL condition:
+
+$$
+\Delta t = 0.5 \cdot \frac{h_{\min}^2}{6\kappa}
+$$
+
+where $h_{\min} = \min(h_x, h_y, h_z)$ is the minimum element size. This ensures numerical stability and prevents divergence. The time step is computed automatically and cannot be manually overridden.
+
 ## Limitations
 
-- **Explicit time-stepping**: Requires small time steps for stability (CFL condition)
+- **Explicit time-stepping**: Time step is automatically computed for stability (CFL condition) and cannot be manually overridden
 - **Structured meshes only**: Currently supports only uniform hexahedral meshes
 - **Dirichlet BCs only**: No Neumann (flux) boundary conditions yet
 - **Uniform material**: Constant thermal conductivity $\kappa$ (no spatial variation)

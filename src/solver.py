@@ -60,7 +60,7 @@ def explicit_step(T, elem_dofs, Ke, M_lump, dt, kappa, dir_nodes, T_bc_vals):
 # Main Simulation Function
 # ============================================================
 def run_simulation(nx=20, ny=20, nz=20,
-                   dt=1e-4, steps=500,
+                   dt=None, steps=500,
                    T_bottom=100.0, T_top=0.0,
                    kappa=1.0,
                    Lx=1.0, Ly=1.0, Lz=1.0,
@@ -76,9 +76,12 @@ def run_simulation(nx=20, ny=20, nz=20,
     using explicit time integration:
         T^{n+1} = T^n - Δt · κ · (K·T^n) / M_lump
     
+    The time step dt is automatically computed using the CFL stability condition
+    to ensure numerical stability. If dt is provided, it will be overridden.
+    
     Args:
         nx, ny, nz: Number of elements in each direction
-        dt: Time step size
+        dt: Time step size (ignored - computed automatically for stability)
         steps: Number of time steps
         T_bottom: Temperature at bottom face (z=0)
         T_top: Temperature at top face (z=Lz)
@@ -135,6 +138,21 @@ def run_simulation(nx=20, ny=20, nz=20,
         # Assemble lumped mass matrix
         M_lump = assemble_lumped_mass(Me, elem_dofs, Nnodes)
 
+        # Compute stable time step using CFL condition for 3D heat conduction
+        hx = Lx / nx
+        hy = Ly / ny
+        hz = Lz / nz
+        h_min = min(hx, hy, hz)
+        
+        # Stable time step for explicit scheme: dt < h_min^2 / (6 * kappa)
+        dt_stable = (h_min ** 2) / (6 * kappa)
+        
+        # Use a safety factor (0.5) for guaranteed stability
+        dt = 0.5 * dt_stable
+        
+        if verbose:
+            print(f"Computed stable time step: dt = {dt:.6e} (h_min = {h_min:.6f}, dt_stable = {dt_stable:.6e})")
+
         # Initial condition: hot sphere at center
         # Start with T_top everywhere
         T = jnp.full(Nnodes, T_top, dtype=jnp.float32)
@@ -189,6 +207,10 @@ def run_simulation(nx=20, ny=20, nz=20,
         # Time stepping loop
         for step in range(steps):
             T = explicit_step(T, elem_dofs, Ke, M_lump, dt, kappa, dir_nodes, T_bc_vals)
+            
+            # Check for numerical instability
+            if jnp.isnan(T).any() or jnp.isinf(T).any():
+                raise RuntimeError(f"Simulation diverged at step {step}: dt too large. Try reducing mesh size or increasing steps.")
             
             # Log temperature statistics
             Tmin = float(T.min())
@@ -252,18 +274,20 @@ def run_simulation(nx=20, ny=20, nz=20,
 # Backward Compatibility
 # ============================================================
 def run_fem_explicit(nx=20, ny=20, nz=20,
-                     dt=1e-4, steps=500,
+                     dt=None, steps=500,
                      T_bottom=100.0, T_top=0.0,
                      kappa=1.0):
     """
     Backward compatibility wrapper for run_simulation.
     
     This function maintains the original API while using the new
-    modular implementation.
+    modular implementation. The dt parameter is ignored - time step
+    is computed automatically for stability.
     """
     T, _ = run_simulation(
         nx=nx, ny=ny, nz=nz,
-        dt=dt, steps=steps,
+        dt=None,  # Ignore provided dt, compute automatically
+        steps=steps,
         T_bottom=T_bottom, T_top=T_top,
         kappa=kappa,
         save_history=False,
@@ -292,10 +316,10 @@ def main():
         print("\nUsing default mesh size: 20 20 20")
         print("Usage: python -m src.solver [nx] [ny] [nz]")
 
-    # Run solver
+    # Run solver (dt computed automatically for stability)
     T, history = run_simulation(
         nx=nx, ny=ny, nz=nz,
-        dt=1e-4,
+        dt=None,  # Computed automatically
         steps=500,
         T_bottom=100.0,
         T_top=0.0,

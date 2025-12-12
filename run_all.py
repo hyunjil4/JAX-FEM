@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Configuration
 NX = NY = NZ = 20
-DT = 1e-4
+# DT is now computed automatically for stability (CFL condition)
 STEPS = 500
 
 # Expected output files
@@ -58,7 +58,7 @@ def run_simulation():
     
     T_final, history = run_simulation(
         nx=NX, ny=NY, nz=NZ,
-        dt=DT,
+        dt=None,  # Computed automatically for stability
         steps=STEPS,
         T_bottom=100.0,
         T_top=0.0,
