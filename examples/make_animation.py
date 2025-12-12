@@ -105,13 +105,15 @@ print(f"Temperature range: {T_min:.2f} to {T_max:.2f}")
 # Generate frames
 frames = []
 for i, T in enumerate(T_history):
-    mid = T.shape[2] // 2
+    # YZ slice at mid X index
+    mid_i = T.shape[0] // 2
+    slice2d = T[mid_i, :, :]  # YZ slice
     
     plt.figure(figsize=(8, 6))
-    plt.imshow(T[:, :, mid], cmap="inferno", vmin=T_min, vmax=T_max, origin='lower')
-    plt.title(f"Heat Diffusion - Step {i+1}/{len(T_history)}", fontsize=12)
-    plt.xlabel("X", fontsize=10)
-    plt.ylabel("Y", fontsize=10)
+    plt.imshow(slice2d, cmap="inferno", vmin=T_min, vmax=T_max, origin='lower')
+    plt.title(f"Heat Diffusion (YZ Slice) - Step {i+1}/{len(T_history)}", fontsize=12)
+    plt.xlabel("Y", fontsize=10)
+    plt.ylabel("Z", fontsize=10)
     plt.colorbar(label="Temperature (°C)")
     plt.tight_layout()
     
@@ -139,7 +141,7 @@ for i, T in enumerate(T_history):
 
 # Calculate mesh size for filename
 nx, ny, nz = T_history[0].shape[0]-1, T_history[0].shape[1]-1, T_history[0].shape[2]-1
-output_file = f"docs/animation/heat_diffusion_{nx}x{ny}x{nz}.gif"
+output_file = f"docs/animation/heat_diffusion_yz_{nx}x{ny}x{nz}.gif"
 
 # Save GIF - check if imageio is available
 if not IMAGEIO_AVAILABLE:
