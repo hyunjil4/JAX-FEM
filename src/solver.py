@@ -60,7 +60,7 @@ def explicit_step(T, elem_dofs, Ke, M_lump, dt, kappa, dir_nodes, T_bc_vals):
 # Main Simulation Function
 # ============================================================
 def run_simulation(nx=20, ny=20, nz=20,
-                   dt=1e-6, steps=100,
+                   dt=1e-4, steps=500,
                    T_bottom=100.0, T_top=0.0,
                    kappa=1.0,
                    Lx=1.0, Ly=1.0, Lz=1.0,
@@ -233,7 +233,7 @@ def run_simulation(nx=20, ny=20, nz=20,
 # Backward Compatibility
 # ============================================================
 def run_fem_explicit(nx=20, ny=20, nz=20,
-                     dt=1e-6, steps=100,
+                     dt=1e-4, steps=500,
                      T_bottom=100.0, T_top=0.0,
                      kappa=1.0):
     """
@@ -276,8 +276,8 @@ def main():
     # Run solver
     T, history = run_simulation(
         nx=nx, ny=ny, nz=nz,
-        dt=1e-6,
-        steps=100,
+        dt=1e-4,
+        steps=500,
         T_bottom=100.0,
         T_top=0.0,
         kappa=1.0,

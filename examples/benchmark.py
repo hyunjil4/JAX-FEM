@@ -32,3 +32,4 @@ plt.savefig("docs/benchmark/performance.png", dpi=150)
 plt.close()
 
 print("Benchmark saved to docs/benchmark/performance.png")
+

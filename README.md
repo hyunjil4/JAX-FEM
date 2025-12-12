@@ -589,3 +589,4 @@ If you use this code in your research, please cite:
 ![Heat Diffusion Animation](docs/animation/heat_diffusion_yz_20x20x20.gif)
 
 ---
+

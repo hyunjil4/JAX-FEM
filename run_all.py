@@ -9,12 +9,13 @@ Master script to run complete FEM pipeline:
 import os
 import subprocess
 import datetime
+import numpy as np
 from pathlib import Path
 
 # Configuration
 NX = NY = NZ = 20
-DT = 1e-6
-STEPS = 100
+DT = 1e-4
+STEPS = 500
 
 # Expected output files
 EXPECTED_FILES = {
@@ -50,20 +51,31 @@ def run_simulation():
     print("STEP 1: Running FEM Simulation")
     print("="*70)
     
-    cmd = f"python src/fem_solver.py {NX} {NY} {NZ}"
-    result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+    # Run simulation with save_history=True using Python API
+    import sys
+    sys.path.insert(0, str(project_root))
+    from src.solver import run_simulation
     
-    if result.returncode != 0:
-        print(result.stderr)
-        raise RuntimeError("Simulation failed")
+    T_final, history = run_simulation(
+        nx=NX, ny=NY, nz=NZ,
+        dt=DT,
+        steps=STEPS,
+        T_bottom=100.0,
+        T_top=0.0,
+        kappa=1.0,
+        save_history=True,
+        verbose=True
+    )
     
-    # Print solver output
-    if result.stdout:
-        print(result.stdout)
+    # Save temperature history for animation
+    if 'T_history' in history and history['T_history']:
+        T_history_array = np.array(history['T_history'])
+        np.save("temperature_history.npy", T_history_array)
+        print(f"✓ Saved temperature history: {len(history['T_history'])} time steps")
     
     # Verify temperature.npy was created
     verify_file("temperature.npy", "Temperature field")
-    print("✓ Step 1 complete: temperature.npy saved\n")
+    print("✓ Step 1 complete: temperature.npy and temperature_history.npy saved\n")
 
 
 def generate_slices():

@@ -55,8 +55,8 @@ if T_history is None:
         
         T_final, history = run_simulation(
             nx=20, ny=20, nz=20,
-            dt=1e-6,
-            steps=50,  # Reduced for faster animation
+            dt=1e-4,
+            steps=500,
             T_bottom=100.0,
             T_top=0.0,
             kappa=1.0,
@@ -193,3 +193,4 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     sys.exit(1)
+

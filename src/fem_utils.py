@@ -217,6 +217,7 @@ def generate_mesh(nx, ny, nz, Lx=1.0, Ly=1.0, Lz=1.0):
 def apply_boundary_conditions(T, coords_global, T_bottom, T_top, Lz=1.0, eps=1e-6):
     """
     Apply Dirichlet boundary conditions at bottom and top faces.
+    Side faces (x=0, x=Lx, y=0, y=Ly) have Neumann (zero flux) boundary conditions.
     
     Args:
         T: Temperature field of shape (Nnodes,)
@@ -266,3 +267,4 @@ def assemble_lumped_mass(Me, elem_dofs, Nnodes):
     M_lump = jnp.zeros(Nnodes, dtype=jnp.float32)
     M_lump = M_lump.at[elem_dofs].add(m_e)  # scatter-add
     return M_lump
+

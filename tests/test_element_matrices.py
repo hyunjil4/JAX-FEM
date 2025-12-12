@@ -80,3 +80,4 @@ def test_element_matrices_positive_semi_definite_stiffness():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

@@ -50,3 +50,4 @@ plt.savefig(output_file, dpi=150, bbox_inches='tight')
 plt.close()
 
 print(f"Saved slice images to {output_file}")
+
