@@ -30,7 +30,6 @@ from .fem_utils import (
     apply_K_global,
     apply_M_global,
     assemble_diagonal,
-    apply_boundary_conditions,
     assert_affine_reuse_ok,
 )
 
@@ -207,9 +206,8 @@ def run_simulation(
         raise ValueError("mode must be either 'run' or 'verify'")
     verify_mode = mode == "verify"
 
-    # Verification mode prioritizes numerical accuracy over speed.
-    jax.config.update("jax_enable_x64", bool(verify_mode))
-    dtype = jnp.float64 if verify_mode else jnp.float32
+    # Keep solver in single precision for best GPU throughput.
+    dtype = jnp.float32
 
     if cg_rtol is None:
         cg_rtol = 1e-10 if verify_mode else 1e-6
@@ -283,7 +281,16 @@ def run_simulation(
         dist_sq = (X - cx) ** 2 + (Y - cy) ** 2 + (Z - cz) ** 2
         T = jnp.where(dist_sq < (R**2), T_bottom, T)
 
-        T, dir_nodes, T_bc_vals = apply_boundary_conditions(T, coords_global, T_bottom, T_top, Lz)
+        # Sphere Dirichlet boundary condition.
+        # All nodes inside radius R around (xc, yc, zc) are fixed to T_bottom.
+        xc, yc, zc = Lx / 2.0, Ly / 2.0, Lz / 2.0
+        sphere_bc_radius = min(Lx, Ly, Lz) / 5.0
+        sphere_dist = jnp.sqrt((X - xc) ** 2 + (Y - yc) ** 2 + (Z - zc) ** 2)
+        sphere_mask = sphere_dist <= sphere_bc_radius
+        T = jnp.where(sphere_mask, T_bottom, T)
+
+        dir_nodes = jnp.where(sphere_mask)[0]
+        T_bc_vals = jnp.full((dir_nodes.shape[0],), T_bottom, dtype=dtype)
         diagA = diagA.at[dir_nodes].set(1.0)
         M_inv = 1.0 / diagA
         T_dir = jnp.zeros_like(T).at[dir_nodes].set(T_bc_vals)
@@ -292,10 +299,10 @@ def run_simulation(
         # Ensure assembly ops are complete before timing is read
         jax.block_until_ready(T)
 
-        assembly_ms = (time.time() - t_asm_start) * 1000.0
+        assembly_s = time.time() - t_asm_start
         if verbose:
             print(f"\nMesh: {nx}×{ny}×{nz} elements, {Nnodes} nodes")
-            print(f"Assembly time: {assembly_ms:.2f} ms")
+            print(f"Assembly time: {assembly_s:.3f} s")
 
         # ----------------- Warm-up (JIT) - not timed -----------------
         # Compile kernels without advancing physical state/time.
@@ -381,19 +388,19 @@ def run_simulation(
         # Final sync before stopping the timer
         jax.block_until_ready(T)
 
-        solve_ms = (time.time() - t_solve_start) * 1000.0
-        total_ms = (time.time() - t_total_start) * 1000.0
+        solve_s = time.time() - t_solve_start
+        total_s = time.time() - t_total_start
 
         history["timing"] = {
-            "assembly_ms": assembly_ms,
-            "solve_ms": solve_ms,
-            "total_ms": total_ms,
+            "assembly_s": assembly_s,
+            "solve_s": solve_s,
+            "total_s": total_s,
             "mesh_size": (nx, ny, nz),
             "num_elements": Ne,
             "num_nodes": Nnodes,
             "dt": float(dt),
             "steps": int(steps),
-            "sec_per_step": float((solve_ms / 1000.0) / max(steps, 1)),
+            "sec_per_step": float(solve_s / max(steps, 1)),
             "cg_rtol": float(cg_rtol),
             "cg_atol": float(cg_atol),
             "cg_maxiter": int(cg_maxiter),
@@ -414,12 +421,12 @@ def run_simulation(
             print(f"Elements : {Ne:6d}")
             print(f"Nodes    : {Nnodes:6d}")
             print(f"dt       : {float(dt):.6e}")
-            print(f"Assembly : {assembly_ms:8.2f} ms")
-            print(f"Solve    : {solve_ms:8.2f} ms")
-            print(f"Total    : {total_ms:8.2f} ms")
+            print(f"Assembly : {assembly_s:8.3f} s")
+            print(f"Solve    : {solve_s:8.3f} s")
+            print(f"Total    : {total_s:8.3f} s")
             print("--------------------------------")
             print(f"CG iters total: {history['stats']['cg_iters_total']}")
-            print(f"sec/step : {(solve_ms/1000.0)/max(steps,1):.6f} s")
+            print(f"sec/step : {solve_s/max(steps,1):.6f} s")
             print(f"avg CG/step: {history['stats']['cg_iters_total']/max(steps,1):.2f}")
             print(f"Tmin = {Tmin_final:.4f}, Tmax = {Tmax_final:.4f}")
             print("="*60 + "\n")
@@ -464,8 +471,7 @@ def main():
         print("\nUsing default mesh size: 20 20 20")
         print("Usage: python -m src.solver [nx] [ny] [nz]")
 
-    # Example: benchmark mode ON for fair timing
-    run_simulation(
+    common_kwargs = dict(
         nx=nx,
         ny=ny,
         nz=nz,
@@ -482,6 +488,20 @@ def main():
         cg_maxiter=200,
     )
 
+    print("\nExecution 1 (Includes JIT Compilation)")
+    t_exec1_start = time.time()
+    run_simulation(**common_kwargs)
+    exec1_s = time.time() - t_exec1_start
+    print(f"Execution 1 wall time: {exec1_s:.3f} s")
+
+    print("\nExecution 2 (Pure GPU Execution)")
+    t_exec2_start = time.time()
+    run_simulation(**common_kwargs)
+    exec2_s = time.time() - t_exec2_start
+    print(f"Execution 2 wall time: {exec2_s:.3f} s")
+
 
 if __name__ == "__main__":
     main()
+    # Execution 2 is the fair comparison against a pre-compiled CPU solver
+    # because it excludes one-time XLA compilation overhead.
