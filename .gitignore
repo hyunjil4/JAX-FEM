@@ -52,3 +52,6 @@ Thumbs.db
 warp/
 *.tmp
 
+*.npy
+__pycache__/
+*.pyc

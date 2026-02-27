@@ -13,7 +13,7 @@ import numpy as np
 from pathlib import Path
 
 # Configuration
-NX = NY = NZ = 20
+NX = NY = NZ = 100
 # DT is now computed automatically for stability (CFL condition)
 STEPS = 500
 

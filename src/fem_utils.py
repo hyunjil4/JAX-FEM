@@ -17,7 +17,7 @@ jax.config.update("jax_enable_x64", False)
 # ============================================================
 # Gauss Points (2×2×2 for HEX8)
 # ============================================================
-_ga = jnp.array([-1.0 / jnp.sqrt(3.0), 1.0 / jnp.sqrt(3.0)], dtype=jnp.float32)
+_ga = jnp.array([-1.0 / jnp.sqrt(3.0), 1.0 / jnp.sqrt(3.0)])
 _gp = jnp.stack(jnp.meshgrid(_ga, _ga, _ga, indexing="ij"), axis=-1).reshape(-1, 3)
 
 
@@ -43,7 +43,7 @@ def shape_functions_hex(xi, eta, zeta):
         (1+xi)*(1-eta)*(1+zeta),
         (1+xi)*(1+eta)*(1+zeta),
         (1-xi)*(1+eta)*(1+zeta),
-    ], dtype=jnp.float32)
+    ])
 
 
 def shape_gradients_hex(xi, eta, zeta):
@@ -65,7 +65,7 @@ def shape_gradients_hex(xi, eta, zeta):
          (1-eta)*(1+zeta),
          (1+eta)*(1+zeta),
         -(1+eta)*(1+zeta),
-    ], dtype=jnp.float32)
+    ])
 
     dN_deta = 0.125 * jnp.array([
         -(1-xi)*(1-zeta),
@@ -76,7 +76,7 @@ def shape_gradients_hex(xi, eta, zeta):
         -(1+xi)*(1+zeta),
          (1+xi)*(1+zeta),
          (1-xi)*(1+zeta),
-    ], dtype=jnp.float32)
+    ])
 
     dN_dzeta = 0.125 * jnp.array([
         -(1-xi)*(1-eta),
@@ -87,7 +87,7 @@ def shape_gradients_hex(xi, eta, zeta):
          (1+xi)*(1-eta),
          (1+xi)*(1+eta),
          (1-xi)*(1+eta),
-    ], dtype=jnp.float32)
+    ])
 
     return jnp.stack([dN_dxi, dN_deta, dN_dzeta], axis=0)  # (3,8)
 
@@ -95,7 +95,7 @@ def shape_gradients_hex(xi, eta, zeta):
 # ============================================================
 # Element Matrices
 # ============================================================
-def compute_element_matrices(coords):
+def compute_element_matrices(coords, check_orientation=False):
     """
     Compute element stiffness (Ke) and mass (Me) matrices via Gauss integration.
     
@@ -110,26 +110,34 @@ def compute_element_matrices(coords):
         Ke: Element stiffness matrix of shape (8, 8)
         Me: Element mass matrix of shape (8, 8)
     """
-    Ke = jnp.zeros((8, 8), dtype=jnp.float32)
-    Me = jnp.zeros((8, 8), dtype=jnp.float32)
+    dtype = coords.dtype
+    Ke = jnp.zeros((8, 8), dtype=dtype)
+    Me = jnp.zeros((8, 8), dtype=dtype)
+    gp = _gp.astype(dtype)
 
-    for xi, eta, zeta in _gp:
+    for xi, eta, zeta in gp:
         N = shape_functions_hex(xi, eta, zeta)      # (8,)
         dN = shape_gradients_hex(xi, eta, zeta)     # (3,8)
 
         # Jacobian matrix
         J = dN @ coords                             # (3,3)
-        detJ = jnp.abs(jnp.linalg.det(J))
+        detJ = jnp.linalg.det(J)
+        if check_orientation and float(detJ) <= 0.0:
+            raise ValueError(
+                f"Invalid HEX8 element orientation: det(J)={float(detJ):.6e} <= 0. "
+                "Element is inverted or degenerate."
+            )
         invJ = jnp.linalg.inv(J)
-        
-        # B matrix: gradient operator in physical coordinates
-        B = invJ @ dN                               # (3,8)
+
+        # Gradient mapping: grad_x(N) = J^{-T} grad_xi(N)
+        B = invJ.T @ dN                             # (3,8)
+        wdet = detJ if check_orientation else jnp.abs(detJ)
 
         # Stiffness matrix contribution: K_e = ∫ B^T B dV
-        Ke += (B.T @ B) * detJ
-        
+        Ke += (B.T @ B) * wdet
+
         # Mass matrix contribution: M_e = ∫ N^T N dV
-        Me += jnp.outer(N, N) * detJ
+        Me += jnp.outer(N, N) * wdet
 
     return Ke, Me
 
@@ -159,11 +167,58 @@ def apply_K_global(T, elem_dofs, Ke):
     out = out.at[elem_dofs].add(KeTe)  # scatter-add
     return out
 
+@jit
+def apply_M_global(T, elem_dofs, Me):
+    """
+    Apply global mass matrix to temperature field (matrix-free).
+    """
+    T_e = T[elem_dofs]                 # (Ne,8)
+    MeTe = T_e @ Me.T                  # (Ne,8)
+    out = jnp.zeros_like(T)
+    out = out.at[elem_dofs].add(MeTe)  # scatter-add
+    return out
+
+
+def assemble_diagonal(elem_mat, elem_dofs, Nnodes):
+    """
+    Assemble global diagonal from an element matrix (8x8) without forming the full matrix.
+    Useful for Jacobi preconditioning in matrix-free solvers.
+    """
+    d_e = jnp.diag(elem_mat)  # (8,)
+    diag = jnp.zeros(Nnodes, dtype=elem_mat.dtype)
+    diag = diag.at[elem_dofs].add(d_e)
+    return diag
+
+
+def assert_affine_reuse_ok(coords_global, elem_dofs, tol=1e-10):
+    """
+    Cheap guard for reusing one Ke/Me globally.
+    Verifies representative elements share the same affine Jacobian at element center.
+    """
+    if elem_dofs.shape[0] <= 1:
+        return
+
+    dN_center = shape_gradients_hex(0.0, 0.0, 0.0).astype(coords_global.dtype)
+    e0 = coords_global[elem_dofs[0]]
+    J0 = dN_center @ e0
+
+    # Sample first, middle, last elements to keep this check cheap.
+    sample_ids = [int(elem_dofs.shape[0] // 2), int(elem_dofs.shape[0] - 1)]
+    for eid in sample_ids:
+        if eid <= 0:
+            continue
+        Ji = dN_center @ coords_global[elem_dofs[eid]]
+        rel = float(jnp.linalg.norm(Ji - J0) / (jnp.linalg.norm(J0) + 1e-30))
+        if rel > tol:
+            raise ValueError(
+                "Detected non-affine/non-uniform mesh geometry while reusing a single "
+                "element matrix. Use per-element Ke/Me assembly for accurate results."
+            )
 
 # ============================================================
 # Mesh Generation
 # ============================================================
-def generate_mesh(nx, ny, nz, Lx=1.0, Ly=1.0, Lz=1.0):
+def generate_mesh(nx, ny, nz, Lx=1.0, Ly=1.0, Lz=1.0, dtype=jnp.float32):
     """
     Generate structured 3D hexahedral mesh.
     
@@ -182,9 +237,9 @@ def generate_mesh(nx, ny, nz, Lx=1.0, Ly=1.0, Lz=1.0):
     hx, hy, hz = Lx / nx, Ly / ny, Lz / nz
 
     # Global node coordinates
-    x = jnp.linspace(0.0, Lx, Nx, dtype=jnp.float32)
-    y = jnp.linspace(0.0, Ly, Ny, dtype=jnp.float32)
-    z = jnp.linspace(0.0, Lz, Nz, dtype=jnp.float32)
+    x = jnp.linspace(0.0, Lx, Nx, dtype=dtype)
+    y = jnp.linspace(0.0, Ly, Ny, dtype=dtype)
+    z = jnp.linspace(0.0, Lz, Nz, dtype=dtype)
     X, Y, Z = jnp.meshgrid(x, y, z, indexing="ij")
     coords_global = jnp.stack([X, Y, Z], axis=-1).reshape(-1, 3)  # (Nnodes,3)
 
@@ -214,7 +269,7 @@ def generate_mesh(nx, ny, nz, Lx=1.0, Ly=1.0, Lz=1.0):
 # ============================================================
 # Boundary Conditions
 # ============================================================
-def apply_boundary_conditions(T, coords_global, T_bottom, T_top, Lz=1.0, eps=1e-6):
+def apply_boundary_conditions(T, coords_global, T_bottom, T_top, Lz=1.0, eps=1e-6, safe_isclose=False):
     """
     Apply Dirichlet boundary conditions at bottom and top faces.
     Side faces (x=0, x=Lx, y=0, y=Ly) have Neumann (zero flux) boundary conditions.
@@ -233,13 +288,17 @@ def apply_boundary_conditions(T, coords_global, T_bottom, T_top, Lz=1.0, eps=1e-
         T_bc_vals: Boundary condition values
     """
     zz = coords_global[:, 2]
-    bottom = jnp.where(jnp.abs(zz - 0.0) < eps)[0]
-    top = jnp.where(jnp.abs(zz - Lz) < eps)[0]
+    if safe_isclose:
+        bottom = jnp.where(jnp.isclose(zz, 0.0, atol=eps, rtol=0.0))[0]
+        top = jnp.where(jnp.isclose(zz, Lz, atol=eps, rtol=0.0))[0]
+    else:
+        bottom = jnp.where(jnp.abs(zz - 0.0) < eps)[0]
+        top = jnp.where(jnp.abs(zz - Lz) < eps)[0]
     dir_nodes = jnp.concatenate([bottom, top], axis=0)
 
     T_bc_vals = jnp.concatenate([
-        jnp.full(bottom.shape[0], T_bottom, dtype=jnp.float32),
-        jnp.full(top.shape[0], T_top, dtype=jnp.float32),
+        jnp.full(bottom.shape[0], T_bottom, dtype=T.dtype),
+        jnp.full(top.shape[0], T_top, dtype=T.dtype),
     ])
 
     T = T.at[bottom].set(T_bottom)
@@ -264,7 +323,7 @@ def assemble_lumped_mass(Me, elem_dofs, Nnodes):
         M_lump: Lumped mass matrix (diagonal) of shape (Nnodes,)
     """
     m_e = Me.sum(axis=1)  # (8,)
-    M_lump = jnp.zeros(Nnodes, dtype=jnp.float32)
+    M_lump = jnp.zeros(Nnodes, dtype=Me.dtype)
     M_lump = M_lump.at[elem_dofs].add(m_e)  # scatter-add
     return M_lump
 
