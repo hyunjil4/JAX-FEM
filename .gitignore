@@ -55,3 +55,4 @@ warp/
 *.npy
 __pycache__/
 *.pyc
+*.npy
