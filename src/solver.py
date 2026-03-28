@@ -186,6 +186,7 @@ def run_simulation(
     prefer_gpu=True,
     benchmark_mode=False,
     sync_every=50,
+    implicit_dt_scale=1.0,
 ):
     """
     PDE (semi-discrete):
@@ -198,6 +199,10 @@ def run_simulation(
       - If True: disables per-step min/max history/logging/saving to avoid host sync overhead.
     sync_every:
       - Synchronize (block_until_ready) every N steps for accurate wall-clock timing on GPU.
+    implicit_dt_scale:
+      - When dt is None, multiply the auto (explicit-CFL-style) dt by this factor. Implicit BE
+        often allows values > 1; time accuracy remains O(dt). For similar physical end time with
+        larger dt, reduce steps proportionally (e.g. scale=4 and steps/4).
     """
     t_total_start = time.time()
 
@@ -268,8 +273,16 @@ def run_simulation(
             h_min = float(min(hx, hy, hz))
             dt_stable = (h_min**2) / (6.0 * float(kappa))
             dt = 0.5 * dt_stable
+            scale = float(implicit_dt_scale)
+            if scale <= 0:
+                raise ValueError("implicit_dt_scale must be positive")
+            if scale != 1.0:
+                dt = dt * scale
             if verbose:
-                print(f"Default dt (from explicit CFL, conservative): dt={dt:.6e} (you can increase dt for implicit BE)")
+                print(
+                    f"Default dt (explicit-CFL baseline × implicit_dt_scale={scale:g}): "
+                    f"dt={dt:.6e} — implicit BE allows larger dt; smaller time error needs smaller dt or more steps."
+                )
         if diagA is None:
             diagA = diagM + (dt * kappa) * diagK
 
@@ -408,6 +421,7 @@ def run_simulation(
             "dtype": "float64" if verify_mode else "float32",
             "benchmark_mode": bool(benchmark_mode),
             "sync_every": int(sync_every) if sync_every else 0,
+            "implicit_dt_scale": float(implicit_dt_scale),
         }
 
         # Final temperature stats (do once; acceptable sync)
@@ -461,22 +475,29 @@ def run_fem_explicit(nx=20, ny=20, nz=20, dt=None, steps=500, T_bottom=100.0, T_
 
 
 def main():
+    argv = [a for a in sys.argv[1:] if a != "--fast"]
+    fast = "--fast" in sys.argv[1:]
+
     nx = ny = nz = 20
-    if len(sys.argv) >= 4:
-        nx = int(sys.argv[1])
-        ny = int(sys.argv[2])
-        nz = int(sys.argv[3])
+    if len(argv) >= 3:
+        nx = int(argv[0])
+        ny = int(argv[1])
+        nz = int(argv[2])
         print(f"\nUsing mesh size from CLI: {nx} {ny} {nz}")
     else:
         print("\nUsing default mesh size: 20 20 20")
-        print("Usage: python -m src.solver [nx] [ny] [nz]")
+        print("Usage: python -m src.solver [nx] [ny] [nz] [--fast]")
+        print("  --fast  : larger implicit dt + fewer steps (~same physical time as default 500 steps)")
+
+    if fast:
+        print("\n[--fast] implicit_dt_scale=4, steps=125 (approx. same physical time as default run)")
 
     common_kwargs = dict(
         nx=nx,
         ny=ny,
         nz=nz,
         dt=None,
-        steps=500,
+        steps=125 if fast else 500,
         T_bottom=100.0,
         T_top=0.0,
         kappa=1.0,
@@ -486,6 +507,7 @@ def main():
         cg_rtol=1e-6,
         cg_atol=0.0,
         cg_maxiter=200,
+        implicit_dt_scale=4.0 if fast else 1.0,
     )
 
     print("\nExecution 1 (Includes JIT Compilation)")
